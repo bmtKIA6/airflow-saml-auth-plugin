@@ -1,0 +1,97 @@
+* Introduction
+
+This plugin allows Airflow to authenticate with a SAML IdP.
+The roles are assigned with the jmespath
+
+Requirements:
+- Airflow
+- SAML IdP
+- keys for your sp (see below)
+
+
+#+begin_src python
+from saml_auth.airflow.auth.saml import AirflowSAMLSecurityManager
+
+AUTH_ROLE_ADMIN = 'Admin'
+AUTH_ROLE_PUBLIC = 'Public'
+AUTH_USER_REGISTRATION = True
+AUTH_USER_REGISTRATION_ROLE = "Public"
+
+# email == 'user1@domain.com' && 'Admin' || (email == 'user2@domain.com' && 'Op' || 'Viewer')
+AUTH_USER_REGISTRATION_ROLE_JMESPATH = "contains(['admin@company.com'], email) && 'Admin' || 'Viewer'"
+AUTH_ROLES_SYNC_AT_LOGIN = True
+
+# # v1
+CUSTOM_SECURITY_MANAGER = AirflowSAMLSecurityManager
+
+# # v2
+SECURITY_MANAGER_CLASS = AirflowSAMLSecurityManager
+
+#+end_src
+
+
+
+
+
+** Generate keys for your SP
+
+If you do not have the keys for your Airflow (SP), generate them
+
+#+begin_src bash
+openssl req -newkey rsa:2048 -new -x509 -days 3652 -nodes -text -out saml.crt -keyout saml.key
+#+end_src
+
+
+** Create settings.json file
+
+Replace *AIRFLOW_BASE_URL* with the url of your airflow
+
+#+begin_src json
+{
+    "strict": false,
+    "debug": true,
+
+    "sp": {
+        "entityId": "<AIRFLOW_BASE_URL>/saml/metadata.xml",
+        "assertionConsumerService": {
+            "url": "<AIRFLOW_BASE_URL>/saml/login?acs",
+            "binding": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+        },
+        "singleLogoutService": {
+            "url": "<AIRFLOW_BASE_URL>/saml/login?sls",
+            "binding": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+        },
+        "NameIDFormat": "urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified",
+        "x509cert": "CERTIFICATE GENERATED ABOVE",
+        "privateKey": "KEY GENERATED ABOVE"
+    },
+
+    "idp": {
+        "entityId": "IDP_ENTITY_ID",
+        "singleSignOnService": {
+            "url": "IDP_SSO",
+            "binding": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Post"
+        },
+        "singleLogoutService": {
+            "url": "IDP_SLS",
+            "binding": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+        },
+        "x509cert": ""
+    }
+}
+#+end_src
+
+
+** Configure Airflow
+
+Either works, environment variables or an entry in airflow.cfg
+
+#+begin_src bash
+AIRFLOW__SAML_AUTH__SAML_PATH: '/opt/airflow'
+#+end_src
+
+#+begin_src text
+# directory that contains settings.json
+[saml_auth]
+saml_path=/opt/airflow
+#+end_src
